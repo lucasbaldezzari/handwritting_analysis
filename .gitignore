@@ -1,0 +1,68 @@
+# ─── Datos ocultos del proyecto ───────────────────────────────────────────────
+_hide_data/
+
+# ─── Datos de EEG / señales (archivos grandes, no van al repo) ────────────────
+# g.HIAMP
+*.hdf5
+*.h5
+
+# LSL / LabRecorder
+*.xdf
+
+# MNE (archivos procesados exportados)
+*.fif
+
+# Otros formatos EEG comunes
+*.edf
+*.bdf
+*.set
+*.fdt
+*.vhdr
+*.vmrk
+*.eeg
+
+# Arrays NumPy exportados (datos procesados pesados)
+*.npy
+*.npz
+
+# ─── Resultados y salidas generadas ───────────────────────────────────────────
+results/
+figures/
+exports/
+epochs/
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+.env/
+.conda/
+*.egg-info/
+
+# Distribuciones / builds
+dist/
+build/
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+mne_data/
+
+# ─── Variables de entorno ─────────────────────────────────────────────────────
+.env
+
+# ─── Sistema operativo ────────────────────────────────────────────────────────
+# Windows
+Thumbs.db
+desktop.ini
+
+# macOS
+.DS_Store
