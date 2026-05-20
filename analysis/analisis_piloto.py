@@ -100,12 +100,9 @@ anotaciones = mne.Annotations(onset=times_markers,
 
 raw_signal.set_annotations(anotaciones)
 
-# Los tipos ya se registraron en create_info; solo verificamos:
 print("Tipos de canal:", raw_signal.get_channel_types())
 
 # Filtro pasa-banda 5-30 Hz SOLO sobre EEG.
-# El EMG requiere un rango mucho mayor (ej. 20-500 Hz), así que lo excluimos
-# para no destruir su contenido espectral.
 raw_signal.filter(l_freq=5.0, h_freq=30.0, picks='eeg', fir_design='firwin')
 
 #Filtro EOG

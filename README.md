@@ -13,7 +13,9 @@ Este repositorio contiene los script en Python para porcesar y analizar las señ
 
 Se registraron 67 canales en total. 
 1. 64 canales de EEG como se muestra en la figura del montaje. Canales 1 a 64.
+
+![Montaje de electrodos EEG](images/Montaje.png)
+
 2. 1 canal de EMG. Canal 65.
 3. 2 canales de EOG. El canal 66 se uso para registro de movimientos horizontales y el 67 para registro de movimientos verticales.
 
-![Montaje de electrodos EEG](images/Montaje.png)
