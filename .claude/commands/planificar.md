@@ -19,11 +19,13 @@ Stack principal: Python · MNE · NumPy · Pandas · Matplotlib · pyhwr (GHiamp
 
 ### Fase 2 — Preguntas al usuario
 Antes de proponer cualquier plan, hacé **preguntas concretas** para entender:
-- ¿Cuál es el objetivo principal de esta sesión? (nuevo análisis, refactor, visualización, etc.)
-- ¿Se trabaja sobre datos de un sujeto específico o sobre todos?
+- ¿Cuál es el objetivo principal de esta sesión? (nuevo análisis, refactor, visualización, comparación entre condiciones, etc.)
+- ¿Se trabaja sobre la tarea **ejecutada**, **imaginada**, o se comparan ambas?
+- ¿Se trabaja sobre datos de un sujeto específico o sobre todos los sujetos disponibles?
 - ¿Hay restricciones de tiempo, dependencias con otras herramientas (`pyhwr`) o entregas?
 - ¿El análisis está orientado a EEG, EMG, EOG o a la señal combinada?
-- ¿Se necesita exportar resultados (figuras, CSVs, epochs, etc.)?
+- ¿Se necesita exportar resultados (figuras, CSVs, epochs, archivos `.fif`, etc.)?
+- ¿El foco es el análisis espectral (PSD), tiempo-frecuencia (TFR/ITC), o se avanza hacia clasificación letra por letra?
 
 No avances a la Fase 3 hasta tener respuestas suficientes.
 
@@ -34,15 +36,15 @@ Presentá el plan usando **todos los recursos visuales disponibles**:
 - **Diagrama del pipeline** (ASCII o Mermaid) mostrando el flujo actual vs. objetivo:
   carga de datos → preprocesamiento → segmentación en epochs → análisis → visualización
 - **Tabla de tareas priorizadas** con columnas: Tarea | Archivo afectado | Esfuerzo (S/M/L) | Impacto | Dependencias
-- **Riesgos identificados** con mitigaciones propuestas (ej: sincronización gHIAMP/LSL, calidad de señal)
+- **Riesgos identificados** con mitigaciones propuestas (ej: sincronización gHIAMP/LSL, calidad de señal, presencia de `pen_down` solo en tarea ejecutada)
 - **Criterios de éxito** medibles para cada tarea
 
 Ejemplo de tabla de tareas:
 | # | Tarea | Archivo | Esfuerzo | Impacto | Depende de |
 |---|-------|---------|----------|---------|-----------|
-| 1 | Segmentar epochs por trial | analysis/analisis_piloto.py | M | Alto | — |
-| 2 | Calcular PSD por canal EEG | analysis/analisis_piloto.py | M | Alto | 1 |
-| 3 | Exportar epochs a .fif | analysis/analisis_piloto.py | S | Medio | 1 |
+| 1 | Comparar PSD ejecutada vs imaginada | analysis/analisis_piloto.py | M | Alto | — |
+| 2 | TFR (Morlet) + ITC por letra | analysis/analisis_piloto.py | M | Alto | 1 |
+| 3 | Exportar epochs a .fif por condición | analysis/analisis_piloto.py | S | Medio | 1 |
 
 ### Fase 4 — Esperar aprobación
 **No implementes nada sin aprobación explícita.**

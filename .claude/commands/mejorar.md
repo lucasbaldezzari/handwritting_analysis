@@ -38,33 +38,41 @@ Realizá un relevamiento simultáneo en 4 dimensiones:
 - Parámetros de filtrado sin justificación (¿por qué esos valores de corte?)
 
 #### 🔬 Dimensión 4: Completitud del análisis
-- ¿Hay pasos del pipeline habitual de EEG que faltan? (ej: rechazo de artefactos, re-referencia, ICA)
-- ¿Los resultados se visualizan y/o exportan de forma útil?
-- ¿Se usan las anotaciones (marcadores) para segmentar el análisis?
+El pipeline actual ya incluye: filtrado multicanal → epochs por cue de letra → PSD (Welch) → TFR (Morlet) + ITC → exportación de figuras BIDS-like.
+
+Evaluá si faltan los siguientes pasos relevantes para la investigación:
+- **Re-referencia**: ¿se usa average reference u otra referencia estándar?
+- **Rechazo de artefactos**: ¿el umbral `reject` está calibrado o es arbitrario? ¿se usa ICA para artefactos oculares/musculares?
+- **Análisis por letra**: ¿las epochs se analizan también por letra individual (no solo promediadas)? Dado el objetivo de decodificación, separar por letra es clave
+- **Comparación ejecutada vs imaginada**: ¿hay análisis que compare las dos condiciones directamente (diferencia de PSD, diferencia de TFR)?
+- **Generalización multi-sujeto**: ¿el pipeline corre sobre todos los sujetos o solo el piloto?
+- ¿Los resultados se visualizan y/o exportan de forma útil (figuras, .fif, CSVs)?
 - ¿Hay código comentado que podría limpiarse o integrarse correctamente?
 
 ### Fase 2 — Mapa de mejoras
 
-Presentá un mapa visual de todas las mejoras identificadas:
+Presentá un mapa visual de todas las mejoras identificadas. El estado base **estimado** del proyecto piloto es el siguiente (ajustalo según lo que encuentres):
 
 ```
-ESTADO ACTUAL DEL PROYECTO
-══════════════════════════
-🏗️  Reproducibilidad: [████░░░░░░] 40% — rutas hardcodeadas, params dispersos
-🐛  Calidad código:   [██████░░░░] 60% — vars sin usar, picks faltantes
-📝  Documentación:    [███░░░░░░░] 30% — sin docstring de módulo, params sin justificar
-🔬  Análisis:         [█████░░░░░] 50% — falta epoching, re-referencia, ICA
+ESTADO ACTUAL DEL PROYECTO (estimado)
+══════════════════════════════════════
+🏗️  Reproducibilidad: [█████░░░░░] 50% — rutas hardcodeadas, params dispersos
+🐛  Calidad código:   [███████░░░] 70% — buen nivel, posibles vars sin usar
+📝  Documentación:    [████████░░] 80% — docstrings y comentarios ya presentes
+🔬  Análisis:         [███████░░░] 70% — PSD + TFR + ITC ok; falta: ICA, ref, análisis por letra
 ```
 
 Seguido de una **tabla de mejoras priorizadas por impacto/esfuerzo**:
 
 | # | Dimensión | Mejora | Impacto | Esfuerzo | ¿Aplico automático? |
 |---|-----------|--------|---------|----------|-------------------|
-| 1 | Reproducibilidad | Centralizar parámetros al inicio | Alto | S | ✅ Sí |
-| 2 | Calidad | Eliminar variables sin usar | Medio | S | ✅ Sí |
-| 3 | Docs | Docstring de módulo + comentarios de bloque | Alto | M | 🔶 Con aprobación |
+| 1 | Reproducibilidad | Centralizar parámetros al inicio del script | Alto | S | ✅ Sí |
+| 2 | Calidad | Eliminar variables sin usar (ej: `trials_laptop`) | Medio | S | ✅ Sí |
+| 3 | Reproducibilidad | Generalizar rutas de datos (argparse o config) | Alto | M | 🔶 Con aprobación |
 | 4 | Análisis | Agregar re-referencia (average ref) | Alto | S | 🔶 Con aprobación |
-| 5 | Análisis | Segmentación en epochs por trial | Alto | M | 🔶 Con aprobación |
+| 5 | Análisis | Análisis por letra individual (epochs separadas por clase) | Alto | M | 🔶 Con aprobación |
+| 6 | Análisis | Comparación ejecutada vs imaginada en una sola sesión | Alto | M | 🔶 Con aprobación |
+| 7 | Análisis | ICA para rechazo de artefactos oculares/musculares | Alto | L | 🔴 Planificar aparte |
 
 ### Fase 3 — Preguntas de alineación
 Antes de ejecutar, confirmá con el usuario:

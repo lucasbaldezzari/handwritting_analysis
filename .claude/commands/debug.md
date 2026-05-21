@@ -37,15 +37,21 @@ Si el usuario no tiene información adicional, procedé con el análisis complet
 - **Construcción del RawArray**: consistencia entre `ch_names`, `ch_types` y dimensiones de datos
 - **Montage**: canales del SFP alineados con los primeros 64 canales del array
 - **Marcadores**: sincronización temporal entre g.HIAMP y LSL, `t0_gtec` correcto
+- **Manejo de `pen_down`**: este marcador solo existe en la tarea `ejecutada`; verificar que el código lo trate condicionalmente (`has_pen_down`) y que en la tarea `imaginada` no produzca errores ni listas vacías inesperadas
 - **Anotaciones**: `onset`, `duration` y `description` con longitudes iguales
 - **Filtros**: `picks` correctos por tipo de canal, orden de aplicación (antes/después del notch)
 - **Escalas**: unidades de la señal (µV vs V) consistentes con los parámetros de `scalings`
+- **Epochs**: ventana temporal coherente con la duración del trial (tmin/tmax apropiados para escritura); umbral de rechazo (`reject`) ajustado a la amplitud real de la señal
+- **TFR (Morlet)**: rango de `freqs` contenido dentro del filtro pasa-banda aplicado; `n_cycles` suficientes para la frecuencia más baja; `decim` coherente con la `sfreq` del amplificador
+- **ITC**: no aplica corrección de baseline (es una medida relativa adimensional); verificar que no se esté aplicando incorrectamente
 
 #### 3.3 Manejo de errores y edge cases
 - Accesos a índices fijos del array (ej: `raw_data[:64,:]`) que podrían fallar si cambia el hardware
 - División por cero o valores NaN en cálculos temporales
-- Listas vacías en `markers_info` si algún marcador no fue registrado
+- Listas vacías en `markers_info` si algún marcador no fue registrado (especialmente `penDown` en tarea imaginada)
 - Archivos de datos inexistentes (rutas hardcodeadas en `path`)
+- Epochs rechazadas por el umbral `reject`: si se rechazan demasiadas, el análisis TFR/ITC pierde potencia estadística
+- Consistencia de longitudes entre `letras` (del LSL) y `trials_tablet` (del g.HIAMP): si hay un desfasaje, los labels de epoch quedan incorrectos
 
 #### 3.4 Calidad del código
 - Ejecutá `ruff check analysis/` y analizá resultados

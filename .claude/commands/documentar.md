@@ -67,12 +67,18 @@ def crear_raw_array(raw_data, eeg_ch_names, sfreq):
 ```
 
 #### Documentá en este orden:
-1. **Docstring de módulo** — qué hace el script, sobre qué datos opera, cómo ejecutarlo,
-   qué produce como salida
-2. **Comentarios de bloque** — uno por sección del pipeline (carga, marcadores, info, filtrado, etc.)
-   que expliquen las decisiones tomadas (ej: por qué `[:64]`, por qué `on_missing='ignore'`)
-3. **Comentarios inline** — solo donde la lógica no es evidente (ej: cálculos de sincronización temporal)
-4. **README** — si está desactualizado respecto al pipeline actual, proponé actualizaciones
+1. **Docstring de módulo** — qué hace el script, sobre qué datos opera (sujeto, tarea, run), cómo ejecutarlo, qué produce como salida
+2. **Comentarios de bloque** — uno por sección del pipeline:
+   - Carga de datos (g.HIAMP + LSL)
+   - Extracción de marcadores y manejo condicional de `pen_down` (solo en tarea ejecutada)
+   - Construcción del RawArray y asignación de tipos de canal
+   - Filtrado (pasa-banda EEG/EOG, pasa-alto EMG, notch 50 Hz)
+   - Creación de epochs por cue de letra (con baseline y rechazo)
+   - Análisis espectral: PSD (Welch) por época y canal
+   - Análisis tiempo-frecuencia: TFR (Morlet) + ITC (coherencia inter-trial)
+   - Exportación de figuras con nomenclatura BIDS-like
+3. **Comentarios inline** — solo donde la lógica no es evidente (ej: cálculo de `t0_gtec`, sincronización LSL/g.HIAMP, parámetros de `n_cycles` en Morlet)
+4. **README** — si está desactualizado respecto al pipeline actual, proponé actualizaciones (en particular: tareas disponibles, estructura de figuras generadas)
 
 ### Fase 4 — Presentación de cambios propuestos
 Mostrá **todos los cambios propuestos** antes de aplicar cualquiera.
