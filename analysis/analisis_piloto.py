@@ -14,14 +14,14 @@ import mne
 ### Cargando datos
 sub = "02"
 ses = "01"
-task = "ejecutada"
-run = "01"
+task = "imaginada"
+run = "03"
 subject_folder = "s2"
 type_signal = "eeg"
 path = f"D:\\dataset\\{subject_folder}"
-show_figs = False
-save_figs = True
-baseline = (-1.,0.)
+show_figs = True
+save_figs = False
+baseline = (-1,0)
 
 lsl_file = f"sub-{sub}_ses-{ses}_task-{task}_run-{run}_{type_signal}.xdf"
 ghiamp_file = f"sub-{sub}_ses-{ses}_task-{task}_run-{run}_{type_signal}.hdf5"
@@ -148,7 +148,7 @@ scalings = {'eeg': 30, 'emg': 300, 'eog': 150}
 # Colores diferenciados por tipo de canal
 color = {'eeg': 'steelblue', 'emg': 'forestgreen', 'eog': 'darkorange'}
 
-# raw_signal.plot(scalings=scalings, color=color, duration=40)
+raw_signal.plot(scalings=scalings, color=color, duration=40)
 
 # eeg_signal: copia de raw_signal con solo los 64 canales EEG.
 # raw_signal se conserva intacto para cualquier analisis posterior de EMG/EOG.
@@ -156,6 +156,7 @@ color = {'eeg': 'steelblue', 'emg': 'forestgreen', 'eog': 'darkorange'}
 
 ### EEG SIGNAL
 eeg_signal = raw_signal.copy().pick('eeg').drop_channels(['F7'])
+# eeg_signal.pick(["FC3", "FC1", "FCz", "FC2", "FC4", "C3", "C1", "Cz", "C2", "C4", "CP3", "CP1", "CPz", "CP2", "CP4"])  # Descomentar para analizar solo canales centrales
 # eeg_signal.plot(scalings=scalings, color=color, duration=50, start=242)
 ### ************** Creando epocas ***************
 
@@ -185,7 +186,7 @@ epochs = mne.Epochs(
     eeg_signal,
     events,
     event_id=event_id_letras,
-    tmin=-1.0,
+    tmin=-2.0,
     tmax=4.0,
     baseline=baseline,
     reject=reject,
