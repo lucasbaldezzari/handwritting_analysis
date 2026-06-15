@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "subject": null,
+    "session": null,
+    "task": null,
+    "run": null,
+    "analysis_date": null,
+    "script_version": "1.1",
+    "source_file": null
+  },
+  "preprocessing": {
+    "eeg_filter_l_freq": null,
+    "eeg_filter_h_freq": null,
+    "eog_filter_l_freq": null,
+    "eog_filter_h_freq": null,
+    "emg_filter_l_freq": null,
+    "emg_filter_h_freq": null,
+    "notch_freqs": [50],
+    "reference": "average",
+    "fir_design": "firwin"
+  },
+  "bad_channels": {
+    "auto_detected": [],
+    "manual": []
+  },
+  "ica_settings": {
+    "n_components": null,
+    "method": null,
+    "random_state": null,
+    "max_iter": null,
+    "fit_picks": "eeg",
+    "n_components_found": null
+  },
+  "ref_paths": {
+    "eog": null,
+    "emg": null
+  },
+  "auto_detected_components": {
+    "eog": {
+      "indices": [],
+      "scores": [],
+      "ref_indices": [],
+      "ref_scores": [],
+      "ref_used": false,
+      "channel_used": ["EOG1", "EOG2"],
+      "threshold": 3.0
+    },
+    "muscle": {
+      "indices": [],
+      "scores": [],
+      "ref_indices": [],
+      "ref_scores": [],
+      "ref_used": false,
+      "method": "find_bads_muscle"
+    }
+  },
+  "components_to_exclude": {
+    "auto_detected": [],
+    "kept_from_auto": [],
+    "auto": [],
+    "manual": [],
+    "final": []
+  },
+  "ica_file": null,
+  "ica_applied": false,
+  "notes": ""
+}

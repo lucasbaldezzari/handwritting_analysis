@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "handwriting-analysis"
+dynamic = ["version"]
+description = "Procesamiento y analisis de senales EEG del proyecto Handwritting."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "matplotlib",
+    "mne",
+    "numpy",
+    "pandas",
+    "pyhwr",
+]
+
+[project.optional-dependencies]
+bids = [
+    "neuroia-bids",
+]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "handwriting_analysis.version.__version__"}
