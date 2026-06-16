@@ -23,15 +23,15 @@ from mne.preprocessing import ICA
 sub  = "02"
 ses  = "02"
 task = "ejecutada"
-run  = "06"
+run  = "05"
 
 type_signal   = "eeg"
 path          = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
-montage_path  = ".\\analysis\\ghiamp_montage.sfp"
+montage_path  = ".\\ghiamp_montage.sfp"
 template_path = ".\\analysis\\ica_results_template.json"
 output_path   = path   # dónde se guarda el JSON (misma carpeta que los datos)
 
-n_components       = 30
+n_components       = 30 #se puede usar un número entre 0 y 1 (varianza acumulada)
 ica_method         = "fastica"
 ica_random_state   = 97
 ica_max_iter       = "auto"
@@ -88,8 +88,8 @@ def _load_and_filter_ref(hdf5_path):
     raw_ref = mne.io.RawArray(rd, inf)
     raw_ref.set_montage(montage, on_missing="ignore")
     raw_ref.drop_channels(['EMG1'])
-    raw_ref.filter(l_freq=1.0, h_freq=40.0, picks='eeg', fir_design='firwin')
-    raw_ref.filter(l_freq=1.0, h_freq=15.0, picks='eog', fir_design='firwin')
+    raw_ref.filter(l_freq=1.0, h_freq=None, picks='eeg', fir_design='firwin')
+    raw_ref.filter(l_freq=1.0, h_freq=None, picks='eog', fir_design='firwin')
     raw_ref.notch_filter([50])
     raw_ref.info['bads'] = bad_channels_known
     raw_ref.set_eeg_reference('average', projection=True)
@@ -98,13 +98,13 @@ def _load_and_filter_ref(hdf5_path):
 
 
 # ─── Preprocesamiento (copia para ICA) ────────────────────────────────────────
-# Se usa 1 Hz como corte inferior para EEG (recomendado por MNE para ICA).
+# Se usa 1 Hz como corte inferior para todos los canales antes de ICA.
 print("\n[2/7] Preprocesando señal para ICA...")
 filt_raw = raw_signal.copy()
 
-filt_raw.filter(l_freq=1.0, h_freq=40.0, picks='eeg', fir_design='firwin')
-filt_raw.filter(l_freq=1.0, h_freq=15.0, picks='eog', fir_design='firwin')
-filt_raw.filter(l_freq=5.0, h_freq=40.0, picks='emg', fir_design='firwin')
+filt_raw.filter(l_freq=1.0, h_freq=None, picks='eeg', fir_design='firwin')
+filt_raw.filter(l_freq=1.0, h_freq=None, picks='eog', fir_design='firwin')
+filt_raw.filter(l_freq=1.0, h_freq=None, picks='emg', fir_design='firwin')
 filt_raw.notch_filter([50])
 
 filt_raw.info['bads'] = bad_channels_known
@@ -242,11 +242,11 @@ result["metadata"]["analysis_date"] = datetime.datetime.now().isoformat()
 result["metadata"]["source_file"] = ghiamp_file
 
 result["preprocessing"]["eeg_filter_l_freq"] = 1.0
-result["preprocessing"]["eeg_filter_h_freq"] = 40.0
+result["preprocessing"]["eeg_filter_h_freq"] = None
 result["preprocessing"]["eog_filter_l_freq"] = 1.0
-result["preprocessing"]["eog_filter_h_freq"] = 15.0
-result["preprocessing"]["emg_filter_l_freq"] = 5.0
-result["preprocessing"]["emg_filter_h_freq"] = 40.0
+result["preprocessing"]["eog_filter_h_freq"] = None
+result["preprocessing"]["emg_filter_l_freq"] = 1.0
+result["preprocessing"]["emg_filter_h_freq"] = None
 
 result["bad_channels"]["auto_detected"] = bad_channels_known
 
@@ -317,8 +317,15 @@ if apply_ica:
     ica.exclude = final_components
     ica.apply(raw_clean)
 
+    raw_before_plot = filt_raw.copy()
+    raw_after_plot = raw_clean.copy()
+    for raw_plot in (raw_before_plot, raw_after_plot):
+        raw_plot.filter(l_freq=1.0, h_freq=40.0, picks='eeg', fir_design='firwin')
+        raw_plot.filter(l_freq=1.0, h_freq=40.0, picks='eog', fir_design='firwin')
+        raw_plot.filter(l_freq=5.0, h_freq=40.0, picks='emg', fir_design='firwin')
+
     # ── 1. Overlay MNE: señal canal por canal antes vs. después
-    ica.plot_overlay(filt_raw, exclude=final_components,
+    ica.plot_overlay(raw_before_plot, exclude=final_components,
                      title=f"Overlay — antes vs. después de ICA\n{run_info}")
 
     # ── 2. Propiedades de los componentes excluidos finales
@@ -326,8 +333,8 @@ if apply_ica:
         ica.plot_properties(filt_raw, picks=final_components)
 
     # ── 3. Comparación de PSD: antes vs. después (media de canales EEG)
-    psd_before = filt_raw.compute_psd(picks='eeg', fmin=1.0, fmax=45.0)
-    psd_after  = raw_clean.compute_psd(picks='eeg', fmin=1.0, fmax=45.0)
+    psd_before = raw_before_plot.compute_psd(picks='eeg', fmin=1.0, fmax=40.0)
+    psd_after  = raw_after_plot.compute_psd(picks='eeg', fmin=1.0, fmax=40.0)
 
     data_before, freqs = psd_before.get_data(return_freqs=True)
     data_after, _      = psd_after.get_data(return_freqs=True)
@@ -344,7 +351,7 @@ if apply_ica:
     fig_psd.tight_layout()
 
     # ── 4. Señal limpia scrollable para inspección final
-    raw_clean.plot(scalings=scalings, color=color,
+    raw_after_plot.plot(scalings=scalings, color=color,
                    title=f"Señal limpia post-ICA — {run_info}", duration=40)
 
     # Actualizar JSON: registrar que ICA fue aplicado

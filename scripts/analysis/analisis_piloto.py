@@ -92,7 +92,7 @@ labels = ["startRun"] + labels
 
 ### ************** Info general ***************
 sfreq = gmanager.sample_rate #frecuencia de muestreo del ampli
-montage_df = pd.read_csv(".\\analysis\\ghiamp_montage.sfp", sep="\t", header=None)
+montage_df = pd.read_csv(".\\ghiamp_montage.sfp", sep="\t", header=None)
 
 # Los primeros 64 canales del SFP corresponden a EEG
 # (se usa [:64] para descartar la fila vacía al final del archivo)
@@ -116,7 +116,7 @@ raw_signal = mne.io.RawArray(raw_data, info)
 # Leer el montage desde el archivo SFP y aplicarlo al objeto Raw.
 # on_missing='ignore' evita errores para EMG1/EOG1/EOG2,
 # que no tienen posición de electrodo en el montage.
-montage = mne.channels.read_custom_montage(".\\analysis\\ghiamp_montage.sfp")
+montage = mne.channels.read_custom_montage(".\\ghiamp_montage.sfp")
 raw_signal.set_montage(montage, on_missing="ignore")
 # raw_signal.plot_sensors(title="Montaje",show_names=True)
 
@@ -137,6 +137,7 @@ raw_signal.crop(tmin=tmin_crop, tmax=tmax_crop)
 if use_ica and ica_json_path:
     from analysis.ica_apply import ICAApplicator
     _cleaner = ICAApplicator(ica_json_path)
+    # Remueve los canales malos del JSON antes de aplicar ICA y filtrar.
     _cleaner.apply_to_raw(raw_signal)
 
 print("Tipos de canal:", raw_signal.get_channel_types())

@@ -1,6 +1,7 @@
 {
   "python.defaultInterpreterPath": "C:\\Users\\corre\\miniconda3\\envs\\pyhwr\\python.exe",
   "python.analysis.extraPaths": [
+    "D:\\repos\\pyhwr",
     "D:\\repos\\neuroialab-bids"
   ],
   "python.analysis.autoSearchPaths": true,

@@ -71,7 +71,7 @@ labels = ["startRun"] + labels
 
 # ─── Objeto MNE Raw ────────────────────────────────────────────────────────────
 sfreq        = gmanager.sample_rate
-montage_df   = pd.read_csv(".\\analysis\\ghiamp_montage.sfp", sep="\t", header=None)
+montage_df   = pd.read_csv(".\\ghiamp_montage.sfp", sep="\t", header=None)
 eeg_ch_names = list(montage_df[0])[:64]
 ch_names     = eeg_ch_names + ["EMG1"] + ["EOG1", "EOG2"]
 ch_types     = ["eeg"] * 64 + ["emg"] + ["eog"] * 2
@@ -79,7 +79,7 @@ ch_types     = ["eeg"] * 64 + ["emg"] + ["eog"] * 2
 info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
 raw_signal = mne.io.RawArray(raw_data, info)
 
-montage = mne.channels.read_custom_montage(".\\analysis\\ghiamp_montage.sfp")
+montage = mne.channels.read_custom_montage(".\\ghiamp_montage.sfp")
 raw_signal.set_montage(montage, on_missing="ignore")
 
 anotaciones = mne.Annotations(
@@ -95,6 +95,7 @@ raw_signal.crop(tmin=tmin_crop, tmax=tmax_crop)
 if use_ica and ica_json_path:
     from analysis.ica_apply import ICAApplicator
     _cleaner = ICAApplicator(ica_json_path)
+    # Remueve los canales malos del JSON antes de aplicar ICA y filtrar.
     _cleaner.apply_to_raw(raw_signal)
 
 # ─── Filtros adaptados a ERP ──────────────────────────────────────────────────

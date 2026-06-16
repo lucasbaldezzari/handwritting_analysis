@@ -12,6 +12,7 @@ Uso típico:
 
 import os
 import json
+import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -30,7 +31,7 @@ class ICAApplicator:
         load_and_fit(hdf5_path)  — carga datos, preprocesa y re-ajusta ICA
         apply(exclude_from)      — aplica exclusión y devuelve señal limpia
         plot_comparison()        — overlay, PSD y señal scrollable
-        apply_to_raw(raw)        — aplica ICA in-place a un Raw ya cargado (para scripts de análisis)
+        apply_to_raw(raw)        — remueve canales malos y aplica ICA in-place
     """
 
     _MONTAGE_PATH = ".\\analysis\\ghiamp_montage.sfp"
@@ -45,6 +46,24 @@ class ICAApplicator:
         self._ica        = None
 
     # ── Carga y ajuste ────────────────────────────────────────────────────────
+
+    def _bad_channels(self) -> list[str]:
+        bads = self.params.get("bad_channels", {})
+        channels = bads.get("auto_detected", []) + bads.get("manual", [])
+        return list(dict.fromkeys(channels))
+
+    @staticmethod
+    def _drop_present_channels(raw: mne.io.RawArray, channels: list[str],
+                               context: str) -> list[str]:
+        present = [ch for ch in channels if ch in raw.ch_names]
+        missing = [ch for ch in channels if ch not in raw.ch_names]
+
+        if present:
+            raw.drop_channels(present)
+            print(f"    Canales malos removidos {context}: {present}")
+        if missing:
+            print(f"    Canales malos no presentes {context}: {missing}")
+        return present
 
     def load_and_fit(self, hdf5_path: str,
                      montage_path: str = None) -> None:
@@ -76,13 +95,11 @@ class ICAApplicator:
         print(f"    {self._raw_signal.n_times} muestras | {len(ch_names)} canales | {sfreq} Hz")
 
         # ── Preprocesamiento (igual que en ica_preprocessing.py)
-        bad_channels = (
-            self.params["bad_channels"]["auto_detected"]
-            + self.params["bad_channels"]["manual"]
-        )
+        bad_channels = self._bad_channels()
         p = self.params["preprocessing"]
 
         self._filt_raw = self._raw_signal.copy()
+        self._drop_present_channels(self._filt_raw, bad_channels, "antes de preprocesar")
         self._filt_raw.filter(l_freq=p["eeg_filter_l_freq"], h_freq=p["eeg_filter_h_freq"],
                                picks='eeg', fir_design=p["fir_design"])
         self._filt_raw.filter(l_freq=p["eog_filter_l_freq"], h_freq=p["eog_filter_h_freq"],
@@ -91,7 +108,7 @@ class ICAApplicator:
             self._filt_raw.filter(l_freq=p["emg_filter_l_freq"], h_freq=p["emg_filter_h_freq"],
                                    picks='emg', fir_design=p["fir_design"])
         self._filt_raw.notch_filter(p["notch_freqs"])
-        self._filt_raw.info['bads'] = bad_channels
+        self._filt_raw.info['bads'] = [ch for ch in bad_channels if ch in self._filt_raw.ch_names]
         self._filt_raw.set_eeg_reference(p["reference"], projection=True)
         self._filt_raw.apply_proj()
         print(f"    Preprocesado. Canales malos: {bad_channels or 'ninguno'}")
@@ -185,8 +202,9 @@ class ICAApplicator:
                      exclude_from: str = 'final',
                      ica_fif_path: str = None) -> None:
         """
-        Carga el objeto ICA desde el .fif y lo aplica in-place sobre un Raw
-        ya cargado y croppeado. No re-fitea ICA: usa el modelo guardado.
+        Carga el objeto ICA desde el .fif, remueve los canales malos registrados
+        en el JSON y lo aplica in-place sobre un Raw ya cargado y croppeado.
+        No re-fitea ICA: usa el modelo guardado.
 
         raw          : objeto Raw a limpiar (se modifica in-place)
         exclude_from : clave de 'components_to_exclude' en el JSON ('final' por defecto)
@@ -202,9 +220,24 @@ class ICAApplicator:
             ica_fif_path = os.path.join(os.path.dirname(self._json_path), fname)
 
         ica = mne.preprocessing.read_ica(ica_fif_path)
+        bad_channels = self._bad_channels()
+        bads_before_ica = [ch for ch in bad_channels if ch not in ica.ch_names]
+        bads_after_ica = [ch for ch in bad_channels if ch in ica.ch_names]
+        self._drop_present_channels(raw, bads_before_ica, "antes de aplicar ICA")
+        if bads_after_ica:
+            warnings.warn(
+                "Los canales malos "
+                f"{bads_after_ica} forman parte del modelo ICA guardado. "
+                "Se removeran despues de aplicar ICA para mantener la "
+                "compatibilidad con MNE, pero lo recomendado es volver a "
+                "generar el ICA marcandolos en bad_channels_known antes del fit.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         components = list(self.params["components_to_exclude"][exclude_from])
         ica.exclude = components
         ica.apply(raw)
+        self._drop_present_channels(raw, bads_after_ica, "despues de aplicar ICA")
         print(f"    ICA aplicado in-place — excluidos ({exclude_from}): {components}")
 
     # ── Propiedad de acceso ───────────────────────────────────────────────────
