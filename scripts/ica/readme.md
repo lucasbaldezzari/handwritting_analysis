@@ -65,7 +65,7 @@ Con esos valores se construyen nombres BIDS-like:
 Las rutas principales son:
 
 - `path = D:\dataset\sub-{sub}\ses-{ses}`: carpeta de datos del sujeto/sesion.
-- `montage_path = .\ghiamp_montage.sfp`: montaje con nombres y posiciones de
+- `montage_path = .\analysis\ghiamp_montage.sfp`: montaje con nombres y posiciones de
   los canales EEG.
 - `template_path = .\analysis\ica_results_template.json`: plantilla del JSON.
 - `output_path = path`: destino del JSON y del archivo `.fif`.
@@ -138,6 +138,35 @@ no se aplica corte superior antes de ICA; el notch en `50 Hz` queda como
 tratamiento especifico de ruido de red. Esto no significa que todos los analisis
 posteriores deban usar solo este filtro; por ejemplo, ERP o TFR pueden aplicar
 filtros propios despues de la limpieza.
+
+### Filtrado usado solo para graficas ICA
+
+El entrenamiento y la deteccion automatica usan `filt_raw` con pasa-altos en
+`1 Hz` y sin corte superior. Para que las visualizaciones sean mas legibles, el
+script crea copias filtradas solo para graficar:
+
+```python
+plot_filter_l_freq = 1.0
+plot_filter_h_freq = 40.0
+```
+
+La funcion `_make_ica_plot_raw(raw)` hace `raw.copy()` y filtra los canales
+presentes (`eeg`, `eog`, `emg`) entre `1-40 Hz`. Esta copia se usa en
+`plot_properties`, `plot_sources`, `plot_overlay`, PSD y senal scrollable. No se
+usa para `ica.fit()`, `find_bads_eog()` ni `find_bads_muscle()`, por lo que no
+cambia la solucion ICA ni los componentes detectados.
+
+El overlay ademas puede acotar automaticamente el eje Y para evitar que outliers
+grandes oculten la senal util:
+
+```python
+overlay_auto_ylim = True
+overlay_ylim_percentiles = (1, 99)
+overlay_ylim_margin = 0.10
+```
+
+Ese acotado solo modifica la escala visual de Matplotlib; no recorta ni altera
+los datos.
 
 Despues se marcan canales malos conocidos:
 
@@ -284,6 +313,15 @@ script.
 
 Cuando `show_figs = True`, el script abre varias visualizaciones. La revision
 manual deberia mirar todas, porque cada una responde una pregunta distinta.
+Antes de llamar a las funciones graficas que dependen de la serie temporal, se
+crea una copia de inspeccion:
+
+```python
+filt_raw_plot = _make_ica_plot_raw(filt_raw)
+```
+
+Esto mantiene separado el `Raw` usado para entrenar ICA (`filt_raw`) del `Raw`
+usado para inspeccion visual (`filt_raw_plot`, filtrado `1-40 Hz`).
 
 ### Topomapas de componentes
 
@@ -316,7 +354,7 @@ componentes apenas por encima del umbral.
 ### Propiedades detalladas
 
 ```python
-ica.plot_properties(filt_raw, picks=auto_excluded)
+ica.plot_properties(filt_raw_plot, picks=auto_excluded)
 ```
 
 Para cada componente excluido muestra informacion combinada: topografia,
@@ -326,7 +364,7 @@ importantes antes de confirmar la exclusion.
 ### Series temporales de fuentes ICA
 
 ```python
-ica.plot_sources(filt_raw, title="Series de tiempo de componentes ICA")
+ica.plot_sources(filt_raw_plot, title="Series de tiempo de componentes ICA")
 ```
 
 Permite inspeccionar la activacion temporal de cada componente. Es util para ver
@@ -337,13 +375,15 @@ componentes desde esta vista.
 ### Overlay antes/despues
 
 ```python
-ica.plot_overlay(filt_raw, exclude=auto_excluded, ...)
+fig_overlay_auto = ica.plot_overlay(filt_raw_plot, exclude=auto_excluded, ...)
+_clip_overlay_ylim(fig_overlay_auto, ...)
 ```
 
 Compara la señal original contra la reconstruida excluyendo los componentes
 marcados. Debe mostrar reduccion del artefacto sin deformar de forma excesiva la
 señal EEG. Si el overlay cambia demasiado zonas sin artefacto, conviene revisar
-la lista de exclusiones.
+la lista de exclusiones. El helper `_clip_overlay_ylim()` solo cambia los
+limites del eje Y para mejorar la lectura cuando hay valores extremos.
 
 ## JSON de resultados
 
@@ -417,10 +457,10 @@ ica.apply(raw_clean)
 antes de aplicar, preservando `filt_raw` para comparaciones.
 
 Antes de graficar, el script crea copias de inspeccion (`raw_before_plot` y
-`raw_after_plot`) y las filtra para facilitar la lectura visual: EEG y EOG entre
-`1-40 Hz`, y EMG entre `5-40 Hz`. Este filtro es solo para las graficas y la PSD
-comparativa; no cambia la solucion ICA ya ajustada ni la lista de componentes
-excluidos.
+`raw_after_plot`) con `_make_ica_plot_raw()`. Ambas quedan filtradas entre
+`1-40 Hz` para facilitar la lectura visual. Este filtro es solo para las
+graficas y la PSD comparativa; no cambia la solucion ICA ya ajustada ni la lista
+de componentes excluidos.
 
 Despues genera:
 

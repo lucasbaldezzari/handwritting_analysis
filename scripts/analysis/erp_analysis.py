@@ -12,18 +12,20 @@ from pyhwr.managers import GHiampDataManager, LSLDataManager
 import mne
 
 # ─── Parámetros ───────────────────────────────────────────────────────────────
-sub = "02"
+sub = "01"
 ses = "02"
-task = "ejecutada"   # "ejecutada" incluye penDown; "imaginada" no
-run = "05"
+task = "imaginada"   # "ejecutada" incluye penDown; "imaginada" no
+run = "14"
 subject_folder = f"ses-{ses}"
 type_signal = "eeg"
 path = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
 show_figs = True
 save_figs = False
 
-use_ica       = True
+use_ica       = False
 ica_json_path = f"{path}\\sub-{sub}_ses-{ses}_task-{task}_run-{run}_ica.json"
+drop_occipital_channels = True
+occipital_channels = ["PO7", "PO3", "POz", "PO4", "PO8", "O1", "Oz", "O2"]
 
 baseline_erp = (-0.3, 0.)
 tmin_epocs = -1.5
@@ -42,8 +44,15 @@ gmanager.changeMarkersNames({1: "startRun", 2: "trialTablet", 3: "penDown", 4: "
 t0_gtec = gmanager.markers_info["startRun"][0]
 markers_info = gmanager.markers_info
 trials_tablet = np.array(markers_info["trialTablet"])
-has_pen_down = "penDown" in markers_info and len(markers_info["penDown"]) > 0
-pen_down = np.array(markers_info["penDown"]) if has_pen_down else np.array([])
+raw_has_pen_down = "penDown" in markers_info and len(markers_info["penDown"]) > 0
+pen_down = np.array(markers_info["penDown"]) if raw_has_pen_down else np.array([])
+include_pen_down = task == "ejecutada" and raw_has_pen_down
+has_pen_down = include_pen_down
+if raw_has_pen_down and task != "ejecutada":
+    print(
+        f"Advertencia: se ignoraron {len(pen_down)} marcadores penDown "
+        f"porque task='{task}'."
+    )
 
 letras = [
     lsl_manager.trials_info["Tablet_Markers"][i]["letter"]
@@ -53,25 +62,33 @@ start_time_tablet        = lsl_manager.trials_info["Tablet_Markers"][1]["session
 rest_times               = np.array(lsl_manager["Tablet_Markers", "trialRestTime", :]) / 1000 - start_time_tablet
 rest_times_relative_gtec = rest_times + t0_gtec
 
-arrays_markers = [trials_tablet, rest_times_relative_gtec]
-if has_pen_down:
-    arrays_markers.insert(1, pen_down)
-times_markers = np.concatenate(arrays_markers)
-times_markers.sort()
+n_trials = min(len(letras), len(trials_tablet), len(rest_times_relative_gtec))
+if n_trials < len(letras) or n_trials < len(trials_tablet) or n_trials < len(rest_times_relative_gtec):
+    print(
+        "Advertencia: se recortaron eventos para alinear "
+        f"letras={len(letras)}, trialTablet={len(trials_tablet)}, "
+        f"rest={len(rest_times_relative_gtec)}."
+    )
+if include_pen_down and len(pen_down) < n_trials:
+    print(
+        f"Advertencia: solo hay {len(pen_down)} marcadores penDown "
+        f"para {n_trials} trials ejecutados."
+    )
 
-labels = []
-for letra, rest in zip(letras, rest_times_relative_gtec):
-    labels.append(letra)
-    if has_pen_down:
-        labels.append("pd")
-    labels.append("rest")
+events_labeled = [(t0_gtec, "startRun")]
+for i in range(n_trials):
+    events_labeled.append((trials_tablet[i], letras[i]))
+    if include_pen_down and i < len(pen_down):
+        events_labeled.append((pen_down[i], "pd"))
+    events_labeled.append((rest_times_relative_gtec[i], "rest"))
 
-times_markers = np.concatenate(([t0_gtec], times_markers))
-labels = ["startRun"] + labels
+events_labeled.sort(key=lambda item: item[0])
+times_markers = np.array([time for time, _ in events_labeled])
+labels = [label for _, label in events_labeled]
 
 # ─── Objeto MNE Raw ────────────────────────────────────────────────────────────
 sfreq        = gmanager.sample_rate
-montage_df   = pd.read_csv(".\\ghiamp_montage.sfp", sep="\t", header=None)
+montage_df   = pd.read_csv(".\\analysis\\ghiamp_montage.sfp", sep="\t", header=None)
 eeg_ch_names = list(montage_df[0])[:64]
 ch_names     = eeg_ch_names + ["EMG1"] + ["EOG1", "EOG2"]
 ch_types     = ["eeg"] * 64 + ["emg"] + ["eog"] * 2
@@ -79,7 +96,7 @@ ch_types     = ["eeg"] * 64 + ["emg"] + ["eog"] * 2
 info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
 raw_signal = mne.io.RawArray(raw_data, info)
 
-montage = mne.channels.read_custom_montage(".\\ghiamp_montage.sfp")
+montage = mne.channels.read_custom_montage(".\\analysis\\ghiamp_montage.sfp")
 raw_signal.set_montage(montage, on_missing="ignore")
 
 anotaciones = mne.Annotations(
@@ -105,6 +122,11 @@ raw_signal.filter(l_freq=4.0, h_freq=30.0, picks='eeg', fir_design='firwin')
 raw_signal.filter(l_freq=1.0, h_freq=15.0, picks='eog', fir_design='firwin')
 raw_signal.filter(l_freq=1.0, h_freq=None, picks='emg', fir_design='firwin')
 raw_signal.notch_filter([50])
+
+if drop_occipital_channels:
+    channels_to_drop = [ch for ch in occipital_channels if ch in raw_signal.ch_names]
+    raw_signal.drop_channels(channels_to_drop)
+    print(f"Canales occipitales removidos para analisis posteriores: {channels_to_drop}")
 
 scalings = {'eeg': 30, 'emg': 300, 'eog': 150}
 
@@ -134,7 +156,6 @@ marcadores_no_letra = {"startRun", "pd", "rest"}
 event_id_letras     = {k: v for k, v in event_id.items() if k not in marcadores_no_letra}
 print("Eventos de letra:", event_id_letras)
 
-
 reject       = {'eeg': 300}   # µV pico a pico — más estricto que TFR
 
 epochs = mne.Epochs(
@@ -152,7 +173,8 @@ print(f"Épocas retenidas: {len(epochs)} / {len(epochs.drop_log)}")
 
 # ─── Configuración de figuras ─────────────────────────────────────────────────
 run_info   = f"Sub-{sub} | Ses-{ses} | Run-{run} | Tarea: {task}"
-fig_prefix = f"sub-{sub}_ses-{ses}_run-{run}_task-{task}"
+ica_suffix = f"ica{use_ica}"
+fig_prefix = f"sub-{sub}_ses-{ses}_run-{run}_task-{task}_{ica_suffix}"
 
 if save_figs:
     fig_dir = os.path.join("images", f"sub-{sub}", f"ses-{ses}", f"run-{run}", task)

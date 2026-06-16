@@ -20,42 +20,53 @@ import mne
 from mne.preprocessing import ICA
 
 # ─── Parámetros de configuración ─────────────────────────────────────────────
-sub  = "02"
-ses  = "02"
-task = "ejecutada"
-run  = "05"
+sub  = "01"
+ses  = "01"
+task = "imaginada"
+run  = "08"
 
 type_signal   = "eeg"
 path          = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
-montage_path  = ".\\ghiamp_montage.sfp"
+montage_path  = ".\\analysis\\ghiamp_montage.sfp"
 template_path = ".\\analysis\\ica_results_template.json"
 output_path   = path   # dónde se guarda el JSON (misma carpeta que los datos)
 
-n_components       = 30 #se puede usar un número entre 0 y 1 (varianza acumulada)
 ica_method         = "fastica"
 ica_random_state   = 97
 ica_max_iter       = "auto"
-bad_channels_known = ["F10"]   # canales malos conocidos a priori
+bad_channels_known = ["F7"]   # canales malos conocidos a priori
+n_components       = 64 - len(bad_channels_known) #se puede usar un número entre 0 y 1 (varianza acumulada)
 
 # Componentes auto-detectados que en realidad parecen actividad cerebral.
 # Estos se conservan: se excluyen del conjunto final a remover.
-components_to_keep = []
+components_to_keep = [6,10]#[9,28,25,10,7,4]
 
 apply_ica = True   # True → 2da pasada: aplica ICA y grafica antes/después
-show_figs = True
+show_figs = False
+show_final_overlay = False
+show_final_properties = False
+overlay_auto_ylim = True
+overlay_ylim_percentiles = (1, 90)
+overlay_ylim_margin = 0.10
+overlay_start = 1.5
+overlay_stop = None
+plot_filter_l_freq = 1.0
+plot_filter_h_freq = 40.0
 
 # Grabaciones de referencia opcionales (mismo sujeto/sesión)
 # Asignar la ruta al HDF5 correspondiente para mejorar la detección automática.
 eog_ref_path = None   # task-eog: movimientos oculares intencionales
 emg_ref_path = None   # task-emg: contracciones musculares intencionales
 
-scalings = {'eeg': 30, 'emg': 150, 'eog': 150}
+scalings = {'eeg': 20, 'emg': 150, 'eog': 150}
 color    = {'eeg': 'steelblue', 'emg': 'forestgreen', 'eog': 'darkorange'}
 
 # ─── Nombres de archivo ───────────────────────────────────────────────────────
 ghiamp_file = f"sub-{sub}_ses-{ses}_task-{task}_run-{run}_{type_signal}.hdf5"
 json_fname  = f"sub-{sub}_ses-{ses}_task-{task}_run-{run}_ica.json"
 json_path   = os.path.join(output_path, json_fname)
+ica_fif_fname = f"sub-{sub}_ses-{ses}_task-{task}_run-{run}_ica.fif"
+ica_fif_path  = os.path.join(output_path, ica_fif_fname)
 run_info    = f"Sub-{sub} | Ses-{ses} | Run-{run} | Tarea: {task}"
 
 # ─── Carga de datos ────────────────────────────────────────────────────────────
@@ -79,6 +90,17 @@ raw_signal.set_montage(montage, on_missing="ignore")
 print(f"    Cargados: {raw_signal.n_times} muestras | {len(raw_signal.ch_names)} canales | sfreq={sfreq} Hz")
 
 
+def _drop_present_channels(raw, channels, context):
+    present = [ch for ch in channels if ch in raw.ch_names]
+    missing = [ch for ch in channels if ch not in raw.ch_names]
+    if present:
+        raw.drop_channels(present)
+        print(f"    Canales removidos {context}: {present}")
+    if missing:
+        print(f"    Canales no presentes {context}: {missing}")
+    return present
+
+
 def _load_and_filter_ref(hdf5_path):
     """Carga un registro de referencia (task-eog o task-emg) con solo canales EEG y EOG.
     EMG se descarta explícitamente: no se usa en ninguna detección de artefactos."""
@@ -88,30 +110,76 @@ def _load_and_filter_ref(hdf5_path):
     raw_ref = mne.io.RawArray(rd, inf)
     raw_ref.set_montage(montage, on_missing="ignore")
     raw_ref.drop_channels(['EMG1'])
+    _drop_present_channels(raw_ref, bad_channels_known, "en referencia")
     raw_ref.filter(l_freq=1.0, h_freq=None, picks='eeg', fir_design='firwin')
     raw_ref.filter(l_freq=1.0, h_freq=None, picks='eog', fir_design='firwin')
     raw_ref.notch_filter([50])
-    raw_ref.info['bads'] = bad_channels_known
     raw_ref.set_eeg_reference('average', projection=True)
     raw_ref.apply_proj()
     return raw_ref
+
+
+def _clip_overlay_ylim(fig, percentiles=(1, 99), margin=0.10):
+    """Acota los ejes Y del overlay usando percentiles de las lineas visibles."""
+    lower, upper = percentiles
+    for ax in fig.axes:
+        y_segments = []
+        for line in ax.get_lines():
+            if not line.get_visible():
+                continue
+            y_data = np.asarray(line.get_ydata(), dtype=float)
+            y_data = y_data[np.isfinite(y_data)]
+            if y_data.size:
+                y_segments.append(y_data)
+
+        if not y_segments:
+            continue
+
+        y_all = np.concatenate(y_segments)
+        y_min, y_max = np.percentile(y_all, [lower, upper])
+        if not (np.isfinite(y_min) and np.isfinite(y_max)):
+            continue
+
+        if y_min == y_max:
+            pad = abs(y_min) * margin if y_min != 0 else margin
+        else:
+            pad = (y_max - y_min) * margin
+        ax.set_ylim(y_min - pad, y_max + pad)
+
+    fig.canvas.draw_idle()
+    return fig
+
+
+def _make_ica_plot_raw(raw):
+    """Devuelve una copia filtrada solo para graficas ICA."""
+    raw_plot = raw.copy()
+    present_types = raw_plot.get_channel_types(unique=True)
+    for ch_type in ("eeg", "eog", "emg"):
+        if ch_type in present_types:
+            raw_plot.filter(
+                l_freq=plot_filter_l_freq,
+                h_freq=plot_filter_h_freq,
+                picks=ch_type,
+                fir_design='firwin',
+            )
+    return raw_plot
 
 
 # ─── Preprocesamiento (copia para ICA) ────────────────────────────────────────
 # Se usa 1 Hz como corte inferior para todos los canales antes de ICA.
 print("\n[2/7] Preprocesando señal para ICA...")
 filt_raw = raw_signal.copy()
+_drop_present_channels(filt_raw, bad_channels_known, "antes de ICA")
 
 filt_raw.filter(l_freq=1.0, h_freq=None, picks='eeg', fir_design='firwin')
 filt_raw.filter(l_freq=1.0, h_freq=None, picks='eog', fir_design='firwin')
 filt_raw.filter(l_freq=1.0, h_freq=None, picks='emg', fir_design='firwin')
 filt_raw.notch_filter([50])
 
-filt_raw.info['bads'] = bad_channels_known
 filt_raw.set_eeg_reference('average', projection=True)
 filt_raw.apply_proj()
 
-print(f"    Canales malos marcados: {filt_raw.info['bads']}")
+print(f"    Canales disponibles para ICA: {len(filt_raw.ch_names)}")
 
 # ─── Ajuste ICA ───────────────────────────────────────────────────────────────
 print(f"\n[3/7] Ajustando ICA ({n_components} componentes, método={ica_method})...")
@@ -124,8 +192,6 @@ ica = ICA(
 ica.fit(filt_raw, picks='eeg')
 print(ica)
 
-ica_fif_fname = f"sub-{sub}_ses-{ses}_task-{task}_run-{run}_ica.fif"
-ica_fif_path  = os.path.join(output_path, ica_fif_fname)
 ica.save(ica_fif_path, overwrite=True)
 print(f"    ICA guardado en: {ica_fif_path}")
 
@@ -181,9 +247,19 @@ print(f"    Componentes auto-excluidos: {auto_excluded}")
 # ─── Visualizaciones de inspección ────────────────────────────────────────────
 if show_figs:
     print("\n[5/7] Generando gráficas de inspección...")
+    filt_raw_plot = _make_ica_plot_raw(filt_raw)
 
-    # 1. Topomapas de todos los componentes
-    ica.plot_components(picks=range(n_components), title="Topomapas de componentes ICA")
+    # 1. Topomapas de todos los componentes, divididos en dos figuras
+    n_components_found = int(ica.n_components_)
+    split_idx = int(np.ceil(n_components_found / 2))
+    ica.plot_components(
+        picks=range(0, split_idx),
+        title="Topomapas de componentes ICA — primera mitad",
+    )
+    ica.plot_components(
+        picks=range(split_idx, n_components_found),
+        title="Topomapas de componentes ICA — segunda mitad",
+    )
 
     # 2. Scores EOG (registro experimental)
     ica.plot_scores(eog_scores, exclude=eog_indices, title="Scores EOG — registro experimental")
@@ -211,15 +287,24 @@ if show_figs:
 
     # 6. Propiedades detalladas de los componentes auto-excluidos
     if auto_excluded:
-        ica.plot_properties(filt_raw, picks=auto_excluded)
+        ica.plot_properties(filt_raw_plot, picks=auto_excluded)
 
     # 7. Series de tiempo de los componentes (interactivo: click para incluir/excluir)
-    ica.plot_sources(filt_raw, title="Series de tiempo de componentes ICA")
+    ica.plot_sources(filt_raw_plot, title="Series de tiempo de componentes ICA")
 
     # 8. Overlay señal original vs. reconstruida (solo con componentes auto-detectados)
     if auto_excluded:
-        ica.plot_overlay(filt_raw, exclude=auto_excluded,
-                         title=f"Overlay auto — antes vs. después de ICA\n{run_info}")
+        fig_overlay_auto = ica.plot_overlay(
+            filt_raw_plot, exclude=auto_excluded,
+            start=overlay_start, stop=overlay_stop,
+            title=f"Overlay auto — antes vs. después de ICA\n{run_info}"
+        )
+        if overlay_auto_ylim:
+            _clip_overlay_ylim(
+                fig_overlay_auto,
+                percentiles=overlay_ylim_percentiles,
+                margin=overlay_ylim_margin,
+            )
 
     plt.show()
 
@@ -317,20 +402,26 @@ if apply_ica:
     ica.exclude = final_components
     ica.apply(raw_clean)
 
-    raw_before_plot = filt_raw.copy()
-    raw_after_plot = raw_clean.copy()
-    for raw_plot in (raw_before_plot, raw_after_plot):
-        raw_plot.filter(l_freq=1.0, h_freq=40.0, picks='eeg', fir_design='firwin')
-        raw_plot.filter(l_freq=1.0, h_freq=40.0, picks='eog', fir_design='firwin')
-        raw_plot.filter(l_freq=5.0, h_freq=40.0, picks='emg', fir_design='firwin')
+    raw_before_plot = _make_ica_plot_raw(filt_raw)
+    raw_after_plot = _make_ica_plot_raw(raw_clean)
 
     # ── 1. Overlay MNE: señal canal por canal antes vs. después
-    ica.plot_overlay(raw_before_plot, exclude=final_components,
-                     title=f"Overlay — antes vs. después de ICA\n{run_info}")
+    if show_final_overlay:
+        fig_overlay = ica.plot_overlay(
+            raw_before_plot, exclude=final_components,
+            start=overlay_start, stop=overlay_stop,
+            title=f"Overlay — antes vs. después de ICA\n{run_info}"
+        )
+        if overlay_auto_ylim:
+            _clip_overlay_ylim(
+                fig_overlay,
+                percentiles=overlay_ylim_percentiles,
+                margin=overlay_ylim_margin,
+            )
 
     # ── 2. Propiedades de los componentes excluidos finales
-    if final_components:
-        ica.plot_properties(filt_raw, picks=final_components)
+    if show_final_properties and final_components:
+        ica.plot_properties(raw_before_plot, picks=final_components)
 
     # ── 3. Comparación de PSD: antes vs. después (media de canales EEG)
     psd_before = raw_before_plot.compute_psd(picks='eeg', fmin=1.0, fmax=40.0)
@@ -350,9 +441,11 @@ if apply_ica:
     ax.legend()
     fig_psd.tight_layout()
 
-    # ── 4. Señal limpia scrollable para inspección final
+    # ── 4. Señal antes/después scrollable para inspección final
+    raw_before_plot.plot(scalings=scalings, color=color,
+                   title=f"Señal antes de ICA — {run_info}", duration=40)
     raw_after_plot.plot(scalings=scalings, color=color,
-                   title=f"Señal limpia post-ICA — {run_info}", duration=40)
+                   title=f"Señal después de ICA — {run_info}", duration=40)
 
     # Actualizar JSON: registrar que ICA fue aplicado
     ica_params["ica_applied"]                      = True
