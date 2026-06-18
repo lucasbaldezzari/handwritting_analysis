@@ -212,7 +212,7 @@ print("Eventos de letra encontrados:", event_id_letras)
 # epocas centradas en el cue de letra:#
 # reject: descarta epocas donde la amplitud pico a pico del EEG supera el umbral.
 
-reject = {'eeg': 150}
+reject = {'eeg': 100}
 
 epochs = mne.Epochs(
     eeg_signal,

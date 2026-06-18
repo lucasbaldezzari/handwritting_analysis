@@ -1,0 +1,12 @@
+*** mne.epochs ****
+https://mne.tools/stable/auto_tutorials/epochs/10_epochs_overview.html
+https://mne.tools/stable/generated/mne.Epochs.html
+https://mne.tools/stable/generated/mne.preprocessing.create_eog_epochs.html
+https://mne.tools/stable/generated/mne.time_frequency.EpochsTFR.html
+
+*** mne ica ****
+https://mne.tools/stable/auto_tutorials/preprocessing/40_artifact_correction_ica.html
+https://mne.tools/stable/auto_examples/preprocessing/muscle_ica.html
+
+*** general analysis ****
+https://mne.tools/stable/auto_tutorials/time-freq/20_sensors_time_frequency.html
