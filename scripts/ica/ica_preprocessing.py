@@ -20,10 +20,10 @@ import mne
 from mne.preprocessing import ICA
 
 # ─── Parámetros de configuración ─────────────────────────────────────────────
-sub  = "01"
-ses  = "01"
-task = "imaginada"
-run  = "08"
+sub  = "02"
+ses  = "02"
+task = "ejecutada"
+run  = "07"
 
 type_signal   = "eeg"
 path          = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
@@ -34,12 +34,12 @@ output_path   = path   # dónde se guarda el JSON (misma carpeta que los datos)
 ica_method         = "fastica"
 ica_random_state   = 97
 ica_max_iter       = "auto"
-bad_channels_known = ["F7"]   # canales malos conocidos a priori
-n_components       = 64 - len(bad_channels_known) #se puede usar un número entre 0 y 1 (varianza acumulada)
+bad_channels_known = []   # canales malos conocidos a priori
+n_components       = 30 - len(bad_channels_known) #se puede usar un número entre 0 y 1 (varianza acumulada)
 
 # Componentes auto-detectados que en realidad parecen actividad cerebral.
 # Estos se conservan: se excluyen del conjunto final a remover.
-components_to_keep = [6,10]#[9,28,25,10,7,4]
+components_to_keep = []#[9,28,25,10,7,4]
 
 apply_ica = True   # True → 2da pasada: aplica ICA y grafica antes/después
 show_figs = False
@@ -101,18 +101,21 @@ def _drop_present_channels(raw, channels, context):
     return present
 
 
-def _load_and_filter_ref(hdf5_path):
-    """Carga un registro de referencia (task-eog o task-emg) con solo canales EEG y EOG.
-    EMG se descarta explícitamente: no se usa en ninguna detección de artefactos."""
+def _load_and_filter_ref(hdf5_path, keep_emg=True):
+    """Carga un registro de referencia (task-eog o task-emg).
+    Si keep_emg=True conserva EMG1 y lo filtra; útil para detección por correlación EMG."""
     gm  = GHiampDataManager(hdf5_path, normalize_time=True)
     rd  = gm.raw_data.swapaxes(1, 0)
     inf = mne.create_info(ch_names=ch_names, sfreq=gm.sample_rate, ch_types=ch_types)
     raw_ref = mne.io.RawArray(rd, inf)
     raw_ref.set_montage(montage, on_missing="ignore")
-    raw_ref.drop_channels(['EMG1'])
+    if not keep_emg:
+        raw_ref.drop_channels(['EMG1'])
     _drop_present_channels(raw_ref, bad_channels_known, "en referencia")
     raw_ref.filter(l_freq=1.0, h_freq=None, picks='eeg', fir_design='firwin')
     raw_ref.filter(l_freq=1.0, h_freq=None, picks='eog', fir_design='firwin')
+    if keep_emg:
+        raw_ref.filter(l_freq=1.0, h_freq=None, picks='emg', fir_design='firwin')
     raw_ref.notch_filter([50])
     raw_ref.set_eeg_reference('average', projection=True)
     raw_ref.apply_proj()
@@ -219,21 +222,32 @@ if eog_ref_path:
 all_eog_indices = sorted(set(eog_indices) | set(eog_ref_indices))
 print(f"    Componentes EOG combinados: {all_eog_indices}")
 
-# ── Músculo: find_bads_muscle detecta potencia de alta frecuencia sin usar EMG1
+# ── Músculo: find_bads_muscle detecta potencia de alta frecuencia (espectral)
 muscle_indices, muscle_scores = ica.find_bads_muscle(filt_raw)
-print(f"    Componentes musculares (registro experimental): {muscle_indices}")
+print(f"    Componentes musculares espectral (experimental): {muscle_indices}")
+
+# ── Músculo: correlación con canal EMG1 (registro experimental)
+emg_corr_indices, emg_corr_scores = ica.find_bads_eog(
+    filt_raw, ch_name='EMG1', threshold=3.0
+)
+print(f"    Componentes EMG por correlación (experimental): {emg_corr_indices}")
 
 # ── Músculo: registro de referencia (si está disponible)
-muscle_ref_indices, muscle_ref_scores = [], np.array([])
+muscle_ref_indices, muscle_ref_scores   = [], np.array([])
+emg_ref_corr_indices, emg_ref_corr_scores = [], np.array([])
 muscle_ref_used = False
 if emg_ref_path:
     print(f"    Cargando grabación de referencia EMG: {emg_ref_path}")
-    filt_emg_ref = _load_and_filter_ref(emg_ref_path)
+    filt_emg_ref = _load_and_filter_ref(emg_ref_path, keep_emg=True)
     muscle_ref_indices, muscle_ref_scores = ica.find_bads_muscle(filt_emg_ref)
+    emg_ref_corr_indices, emg_ref_corr_scores = ica.find_bads_eog(
+        filt_emg_ref, ch_name='EMG1', threshold=3.0
+    )
+    muscle_ref_indices = sorted(set(muscle_ref_indices) | set(emg_ref_corr_indices))
     muscle_ref_used = True
     print(f"    Componentes musculares (grabación de referencia): {muscle_ref_indices}")
 
-all_muscle_indices = sorted(set(muscle_indices) | set(muscle_ref_indices))
+all_muscle_indices = sorted(set(muscle_indices) | set(emg_corr_indices) | set(muscle_ref_indices))
 print(f"    Componentes musculares combinados: {all_muscle_indices}")
 
 auto_detected  = sorted(set(all_eog_indices) | set(all_muscle_indices))
@@ -271,18 +285,32 @@ if show_figs:
             title="Scores EOG — grabación de referencia"
         )
 
-    # 4. Scores musculares (registro experimental)
+    # 4. Scores musculares espectral (registro experimental)
     if len(muscle_scores) > 0:
         ica.plot_scores(
             muscle_scores, exclude=muscle_indices,
-            title="Scores musculares — registro experimental"
+            title="Scores musculares espectral — registro experimental"
         )
 
-    # 5. Scores musculares desde grabación de referencia (si fue usada)
+    # 5. Scores EMG por correlación con EMG1 (registro experimental)
+    if len(emg_corr_scores) > 0:
+        ica.plot_scores(
+            emg_corr_scores, exclude=emg_corr_indices,
+            title="Scores EMG (correlación con EMG1) — registro experimental"
+        )
+
+    # 6. Scores musculares desde grabación de referencia (si fue usada)
     if muscle_ref_used and len(muscle_ref_scores) > 0:
         ica.plot_scores(
             muscle_ref_scores, exclude=muscle_ref_indices,
             title="Scores musculares — grabación de referencia"
+        )
+
+    # 7. Scores EMG correlación desde grabación de referencia (si fue usada)
+    if muscle_ref_used and len(emg_ref_corr_scores) > 0:
+        ica.plot_scores(
+            emg_ref_corr_scores, exclude=emg_ref_corr_indices,
+            title="Scores EMG (correlación con EMG1) — grabación de referencia"
         )
 
     # 6. Propiedades detalladas de los componentes auto-excluidos
@@ -311,10 +339,12 @@ if show_figs:
 # ─── Guardar JSON BIDS-like ───────────────────────────────────────────────────
 print(f"\n[6/7] Guardando resultados en: {json_path}")
 
-eog_scores_list         = eog_scores.tolist()         if hasattr(eog_scores,         'tolist') else []
-eog_ref_scores_list     = eog_ref_scores.tolist()     if hasattr(eog_ref_scores,     'tolist') else []
-muscle_scores_list      = muscle_scores.tolist()      if hasattr(muscle_scores,      'tolist') else []
-muscle_ref_scores_list  = muscle_ref_scores.tolist()  if hasattr(muscle_ref_scores,  'tolist') else []
+eog_scores_list             = eog_scores.tolist()             if hasattr(eog_scores,             'tolist') else []
+eog_ref_scores_list         = eog_ref_scores.tolist()         if hasattr(eog_ref_scores,         'tolist') else []
+muscle_scores_list          = muscle_scores.tolist()          if hasattr(muscle_scores,          'tolist') else []
+muscle_ref_scores_list      = muscle_ref_scores.tolist()      if hasattr(muscle_ref_scores,      'tolist') else []
+emg_corr_scores_list        = emg_corr_scores.tolist()        if hasattr(emg_corr_scores,        'tolist') else []
+emg_ref_corr_scores_list    = emg_ref_corr_scores.tolist()    if hasattr(emg_ref_corr_scores,    'tolist') else []
 
 with open(template_path, 'r', encoding='utf-8') as f:
     result = json.load(f)
@@ -346,11 +376,15 @@ result["auto_detected_components"]["eog"]["scores"]            = eog_scores_list
 result["auto_detected_components"]["eog"]["ref_indices"]       = eog_ref_indices
 result["auto_detected_components"]["eog"]["ref_scores"]        = eog_ref_scores_list
 result["auto_detected_components"]["eog"]["ref_used"]          = eog_ref_used
-result["auto_detected_components"]["muscle"]["indices"]        = all_muscle_indices
-result["auto_detected_components"]["muscle"]["scores"]         = muscle_scores_list
-result["auto_detected_components"]["muscle"]["ref_indices"]    = muscle_ref_indices
-result["auto_detected_components"]["muscle"]["ref_scores"]     = muscle_ref_scores_list
-result["auto_detected_components"]["muscle"]["ref_used"]       = muscle_ref_used
+result["auto_detected_components"]["muscle"]["indices"]             = all_muscle_indices
+result["auto_detected_components"]["muscle"]["scores"]              = muscle_scores_list
+result["auto_detected_components"]["muscle"]["emg_corr_indices"]    = emg_corr_indices
+result["auto_detected_components"]["muscle"]["emg_corr_scores"]     = emg_corr_scores_list
+result["auto_detected_components"]["muscle"]["ref_indices"]         = muscle_ref_indices
+result["auto_detected_components"]["muscle"]["ref_scores"]          = muscle_ref_scores_list
+result["auto_detected_components"]["muscle"]["emg_ref_corr_indices"]= emg_ref_corr_indices
+result["auto_detected_components"]["muscle"]["emg_ref_corr_scores"] = emg_ref_corr_scores_list
+result["auto_detected_components"]["muscle"]["ref_used"]            = muscle_ref_used
 result["ref_paths"]["eog"] = str(eog_ref_path) if eog_ref_path else None
 result["ref_paths"]["emg"] = str(emg_ref_path) if emg_ref_path else None
 

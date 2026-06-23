@@ -4,6 +4,8 @@ https://mne.tools/stable/generated/mne.Epochs.html
 https://mne.tools/stable/generated/mne.preprocessing.create_eog_epochs.html
 https://mne.tools/stable/generated/mne.time_frequency.EpochsTFR.html
 
+https://mne.tools/stable/auto_tutorials/stats-sensor-space/40_cluster_1samp_time_freq.html
+
 *** mne ica ****
 https://mne.tools/stable/auto_tutorials/preprocessing/40_artifact_correction_ica.html
 https://mne.tools/stable/auto_examples/preprocessing/muscle_ica.html

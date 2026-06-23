@@ -13,10 +13,10 @@ from analysis.ica_apply import ICAApplicator
 import mne
 
 ### Cargando datos
-sub = "01"
+sub = "02"
 ses = "02"
-task = "imaginada"
-run = "12"
+task = "ejecutada"
+run = "05"
 subject_folder = f"ses-{ses}"
 type_signal = "eeg"
 path = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
