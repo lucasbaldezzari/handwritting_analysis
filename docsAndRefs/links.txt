@@ -9,6 +9,7 @@ https://mne.tools/stable/auto_tutorials/stats-sensor-space/40_cluster_1samp_time
 *** mne ica ****
 https://mne.tools/stable/auto_tutorials/preprocessing/40_artifact_correction_ica.html
 https://mne.tools/stable/auto_examples/preprocessing/muscle_ica.html
+https://mne.tools/mne-biomag-group-demo/auto_examples/demos/plot_ica.html
 
 *** general analysis ****
 https://mne.tools/stable/auto_tutorials/time-freq/20_sensors_time_frequency.html

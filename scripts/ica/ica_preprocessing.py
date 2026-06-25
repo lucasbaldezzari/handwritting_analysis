@@ -20,10 +20,10 @@ import mne
 from mne.preprocessing import ICA
 
 # ─── Parámetros de configuración ─────────────────────────────────────────────
-sub  = "02"
+sub  = "01"
 ses  = "02"
 task = "ejecutada"
-run  = "07"
+run  = "06"
 
 type_signal   = "eeg"
 path          = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
@@ -35,7 +35,7 @@ ica_method         = "fastica"
 ica_random_state   = 97
 ica_max_iter       = "auto"
 bad_channels_known = []   # canales malos conocidos a priori
-n_components       = 30 - len(bad_channels_known) #se puede usar un número entre 0 y 1 (varianza acumulada)
+n_components       = 50 - len(bad_channels_known) #se puede usar un número entre 0 y 1 (varianza acumulada)
 
 # Componentes auto-detectados que en realidad parecen actividad cerebral.
 # Estos se conservan: se excluyen del conjunto final a remover.

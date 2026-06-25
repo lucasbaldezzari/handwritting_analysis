@@ -5,8 +5,18 @@
     "task": null,
     "run": null,
     "analysis_date": null,
-    "script_version": "1.1",
+    "script_version": "2.0",
     "source_file": null
+  },
+  "fit": {
+    "strategy": "joint_session_ica",
+    "fit_runs": [],
+    "eog_run": null,
+    "emg_run": null,
+    "eog_crop": [null, null],
+    "emg_crop": [null, null],
+    "n_samples": null,
+    "sfreq": null
   },
   "preprocessing": {
     "eeg_filter_l_freq": null,
@@ -39,29 +49,35 @@
     "eog": {
       "indices": [],
       "scores": [],
-      "ref_indices": [],
-      "ref_scores": [],
-      "ref_used": false,
       "channel_used": ["EOG1", "EOG2"],
-      "threshold": 3.0
+      "threshold": 3.0,
+      "source": "eog_run"
     },
     "muscle": {
       "indices": [],
       "scores": [],
-      "ref_indices": [],
-      "ref_scores": [],
-      "ref_used": false,
-      "method": "find_bads_muscle"
+      "emg_corr_indices": [],
+      "emg_corr_scores": [],
+      "method": "find_bads_muscle + find_bads_eog(EMG1)",
+      "source": "emg_run"
     }
+  },
+  "validation_on_target": {
+    "eog_indices": [],
+    "muscle_indices": [],
+    "overlap_with_auto": [],
+    "note": "Componentes etiquetados por calibracion que tambien se detectan en el run objetivo."
   },
   "components_to_exclude": {
     "auto_detected": [],
     "kept_from_auto": [],
     "auto": [],
     "manual": [],
-    "final": []
+    "final": [],
+    "applied": []
   },
   "ica_file": null,
+  "clean_file": null,
   "ica_applied": false,
   "notes": ""
 }

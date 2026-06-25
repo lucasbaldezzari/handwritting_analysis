@@ -1,0 +1,32 @@
+Necesito remover artefactos usando como base lo que se hace en docsAndRefs\links.txt referente a ICA. Dentro de scripts\ica\ica_preprocessing.py encontrarás un script iniciado. La idea es remover artefactos de mi señal de EEG. Tengo rondas donde la persona mueve los ojos y en otra donde realiza contracción muscular voluntaria, los nombres generales son sub-01_ses-02_task-eog_run-03_eeg y sub-01_ses-02_task-emg_run-02_eeg, respectivamente. Además, tengo rondas de movimientos ejecutados e imaginados, ejemplo, sub-01_ses-02_task-ejecutada_run-05_eeg. La idea es poder aplicar ICA a esta última (ten en cuenta que tengo archivos hdf5 y xdf) 
+
+Estrategia que recomiendo
+Para los datos, la mejor alternativa no sería ajustar ICA únicamente con:
+•	sub-01_ses-02_task-eog_run-03_eeg 
+•	sub-01_ses-02_task-emg_run-02_eeg 
+y aplicar directamente esa descomposición a:
+•	sub-01_ses-02_task-ejecutada_run-05_eeg 
+
+La estrategia más sólida sería:
+1. Ajustar una ICA conjunta por sesión
+Concatenar, para el ajuste de ICA:
+•	Una o varias rondas ejecutadas. 
+•	Una o varias rondas imaginadas. 
+•	Segmentos representativos de la ronda EOG. 
+•	Segmentos representativos de la ronda EMG.
+
+2. Usar las rondas EOG y EMG para identificar componentes
+Una vez estimada la ICA conjunta:
+•	Proyectar la ronda EOG en el espacio de componentes. 
+•	Buscar componentes correlacionados con VEOG y HEOG. 
+•	Proyectar la ronda EMG. 
+•	Buscar componentes con características musculares. 
+•	Comprobar que esos mismos componentes están presentes en la ronda ejecutada o imaginada. 
+•	Excluirlos únicamente después de una validación visual y cuantitativa. 
+
+ICA.find_bads_eog() identifica componentes por correlación con los canales EOG. ICA.find_bads_muscle() utiliza pendiente espectral, localización periférica y focalidad espacial para proponer componentes musculares. 
+Esta estrategia utiliza las rondas de calibración como referencia para etiquetar componentes, pero obtiene la matriz de separación de datos que también contienen la tarea real.
+
+Si vas a generar gráficos, debes darme la opción de poder mostrarlos y/o guardarlos (dpi = dpi) con la variable dpi = 300.
+
+En D:\repos\pyhwr puedes profundizar en los objetos de la librería pyhwr. Dentro de D:\dataset\sub-01\ses-02 puedes encontrar algunos datos de mi experimento.

@@ -28,7 +28,7 @@ type_signal = "eeg"
 path = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
 
 show_figs  = True
-save_figs  = False
+save_figs  = True
 block_figs = True
 
 use_ica       = True
