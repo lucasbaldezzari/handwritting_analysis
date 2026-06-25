@@ -58,8 +58,8 @@ color    = {'eeg': 'steelblue', 'emg': 'forestgreen', 'eog': 'darkorange'}
 # ─── Parámetros TFR ───────────────────────────────────────────────────────────
 tfr_freqs          = np.logspace(*np.log10([5, 30]), num=20)
 tfr_ncycles        = tfr_freqs / 2.0
-tfr_time_bandwidth = 4.0    # resolución espectral multitaper (nº tapers = 2*tbw-1 = 7)
-tfr_decim          = 4
+tfr_time_bandwidth = 5.0    # resolución espectral multitaper (nº tapers = 2*tbw-1 = 7)
+tfr_decim          = 5
 
 # Bandas de potencia para topomaps
 tfr_bands = {"Theta (4-8 Hz)": (4, 8), "Alpha (8-13 Hz)": (8, 13), "Beta (13-30 Hz)": (13, 30)}
@@ -67,7 +67,7 @@ tfr_bands = {"Theta (4-8 Hz)": (4, 8), "Alpha (8-13 Hz)": (8, 13), "Beta (13-30 
 # Puntos (tiempo_s, frecuencia_Hz) para los topomaps del plot_joint.
 # None → MNE detecta automáticamente los picos más prominentes.
 # Ejemplo manual: [(0.3, 10), (0.8, 20)]
-tfr_timefreqs = [(0.,10),(0.,18),(0.5,10),(0.5,18)]#None
+tfr_timefreqs = [(0.,10.5),(0.1,10.5),(0.3,10.5),(0.5,10.5)]#None
 
 # Baseline para corrección de TFR/topomaps.
 # None → sin corrección.  Ejemplo: (tmin_epocs, 0.0) usa el período pre-evento.
