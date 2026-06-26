@@ -15,6 +15,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pyhwr.managers import GHiampDataManager, LSLDataManager
 from analysis.ica_apply import ICAApplicator
+from analysis.pdf_report import PdfReport
 import mne
 
 # ─── Parámetros configurables ─────────────────────────────────────────────────
@@ -27,8 +28,9 @@ run  = "06"
 type_signal = "eeg"
 path = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
 
-show_figs  = True
-save_figs  = True
+show_figs  = False
+save_figs  = False
+save_pdf   = True   # agrupa todas las figuras en un único PDF
 block_figs = True
 
 use_ica       = True
@@ -37,9 +39,17 @@ ica_json_path = f"{path}\\sub-{sub}_ses-{ses}_task-{task}_run-{run}_ica.json"
 drop_occipital_channels = False
 occipital_channels = ["PO7", "PO3", "POz", "PO4", "PO8", "O1", "Oz", "O2"]
 
+# Lista adicional de canales a remover (independiente de los occipitales).
+drop_additional_channels = False
+additional_channels = []   # ej. ["Fp1", "Fp2", "AF7"]
+
 # Duración mínima aceptable de época (segundos).
 # Si min(last_penUp − first_penDown) < tmax_umbral se usa tmax_umbral.
 tmax_umbral  = 1.0
+# Duración mínima (s) para considerar válida la escritura de un trial.
+# Trials con (último penUp − primer penDown) por debajo se descartan como artefacto
+# (p. ej. toques espurios) al computar tmax. Los trials genuinos duran ≥ ~1.25 s.
+min_valid_duration = 0.5
 tmin_epocs   = -1.25   # segundos previos al evento de anclaje (penDown o rest)
 
 # Umbral de rechazo de época por EEG (µV pico a pico → V para MNE).
@@ -138,22 +148,37 @@ for i in range(1, n_trials + 1):
     pu_ms  = np.array(trial.get("penUpMarkers",   []))
 
     if len(pd_ms) == 0 or len(pu_ms) == 0:
-        # Fallback: usar marcador GHiamp o cue de trial si no hay datos tablet
+        # Fallback: usar marcador GHiamp o cue de trial si no hay datos tablet.
+        # Se ancla la época pero NO se aporta duración al cómputo de tmax.
         fallback = pen_down[i - 1] if (has_pen_down and i - 1 < len(pen_down)) else trials_tablet[i - 1]
         first_pendown_gtec.append(float(fallback))
-        writing_durations.append(tmax_umbral)
-        print(f"  Trial {i}: sin penDownMarkers/penUpMarkers en LSL, usando fallback.")
+        print(f"  Trial {i}: sin penDownMarkers/penUpMarkers en LSL, usando fallback "
+              f"(excluido del cómputo de tmax).")
         continue
 
-    first_pd_gtec = (pd_ms[0]  / 1000) - start_time_tablet + t0_gtec
-    last_pu_gtec  = (pu_ms[-1] / 1000) - start_time_tablet + t0_gtec
+    # min/max para ser robustos al orden de los markers dentro del trial.
+    first_pd_gtec = (pd_ms.min() / 1000) - start_time_tablet + t0_gtec
+    last_pu_gtec  = (pu_ms.max() / 1000) - start_time_tablet + t0_gtec
     duration      = last_pu_gtec - first_pd_gtec
 
     first_pendown_gtec.append(float(first_pd_gtec))
-    writing_durations.append(float(duration))
 
-# tmax compartido: mínimo de la duración de escritura, con piso en tmax_umbral
-computed_tmax = min(writing_durations)
+    # La duración sólo se usa si supera el piso (descarta toques espurios).
+    if duration >= min_valid_duration:
+        writing_durations.append(float(duration))
+    else:
+        print(f"  Trial {i}: duración {duration:.3f}s < {min_valid_duration}s, "
+              f"excluida del cómputo de tmax (artefacto).")
+
+# tmax compartido: mínimo de la duración de escritura válida, con piso en tmax_umbral.
+if not writing_durations:
+    print(
+        f"Advertencia: ningún trial aportó duración válida (≥ {min_valid_duration} s). "
+        f"Se usa tmax_umbral."
+    )
+    computed_tmax = tmax_umbral
+else:
+    computed_tmax = min(writing_durations)
 if computed_tmax < tmax_umbral:
     print(
         f"tmax calculado ({computed_tmax:.3f} s) es menor que tmax_umbral "
@@ -227,6 +252,13 @@ if drop_occipital_channels:
     raw_signal.drop_channels(channels_to_drop)
     print(f"Canales occipitales removidos: {channels_to_drop}")
 
+# ─── Remoción de canales adicionales ─────────────────────────────────────────
+
+if drop_additional_channels:
+    extra_to_drop = [ch for ch in additional_channels if ch in raw_signal.ch_names]
+    raw_signal.drop_channels(extra_to_drop)
+    print(f"Canales adicionales removidos: {extra_to_drop}")
+
 # ─── Señal EEG ───────────────────────────────────────────────────────────────
 
 eeg_signal = raw_signal.copy().pick("eeg")
@@ -297,14 +329,21 @@ run_info   = f"Sub-{sub} | Ses-{ses} | Run-{run} | Tarea: {task}"
 ica_suffix = f"ica{use_ica}"
 fig_prefix = f"sub-{sub}_ses-{ses}_run-{run}_task-{task}_{ica_suffix}"
 
-if save_figs:
+if save_figs or save_pdf:
     fig_dir = os.path.join("images", f"sub-{sub}", f"ses-{ses}", f"run-{run}", task)
     os.makedirs(fig_dir, exist_ok=True)
+
+# Reporte PDF que agrupa todas las figuras.
+report = None
+if save_pdf:
+    report = PdfReport(os.path.join(fig_dir, f"{fig_prefix}_reporte.pdf"))
 
 
 def _save(fig, fname):
     if save_figs:
         fig.savefig(os.path.join(fig_dir, fname), dpi=300, bbox_inches="tight")
+    if report is not None:
+        report.add_figure(fig)
     if show_figs:
         fig.show()
     else:
@@ -319,6 +358,8 @@ if save_figs:
         os.path.join(fig_dir, f"{fig_prefix}_senal_filtrada.png"),
         dpi=300, bbox_inches="tight",
     )
+if report is not None:
+    report.add_figure(fig_raw)
 
 # ─── Figuras temporales ───────────────────────────────────────────────────────
 
@@ -337,6 +378,8 @@ for epoch_type, epochs_obj, label in [
             os.path.join(fig_dir, f"{fig_prefix}_{epoch_type}_epochs_browser.png"),
             dpi=300, bbox_inches="tight",
         )
+    if report is not None:
+        report.add_figure(fig_browser)
 
     evoked = epochs_obj.average()
 
@@ -414,6 +457,10 @@ for epoch_type, epochs_obj, label in [
         ax.set_title(band_name)
     fig_bands.suptitle(f"Topomapas potencia por banda — {label} | {run_info}")
     _save(fig_bands, f"{fig_prefix}_{epoch_type}_tfr_bandas.png")
+
+if report is not None:
+    report.close()
+    print(f"\nReporte PDF guardado ({report.n_pages} páginas): {report.filepath}")
 
 if block_figs and show_figs:
     plt.show(block=True)

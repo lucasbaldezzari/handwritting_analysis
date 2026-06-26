@@ -55,8 +55,8 @@ sub  = "01"
 ses  = "02"
 
 # Única ronda experimento a analizar / limpiar (ejecutada o imaginada).
-target_task = "ejecutada"
-target_run  = "06"
+target_task = "imaginada"
+target_run  = "12"
 
 type_signal   = "eeg"
 path          = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
@@ -84,7 +84,7 @@ notch_freqs = [50]
 eog_measure        = "correlation"   # 'correlation' (|r|) o 'zscore'
 eog_threshold      = 0.5             # |r| mínimo de correlación con EOG1/EOG2
 emg_measure        = "correlation"
-emg_corr_threshold = 0.5             # |r| mínimo de correlación con EMG1
+emg_corr_threshold = 0.7             # |r| mínimo de correlación con EMG1
 muscle_threshold   = 0.85            # find_bads_muscle: 0.5 sobre-detecta; 0.85-0.9 focal
 top_n_report       = 8
 
