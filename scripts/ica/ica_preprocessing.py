@@ -22,8 +22,8 @@ from mne.preprocessing import ICA
 # ─── Parámetros de configuración ─────────────────────────────────────────────
 sub  = "01"
 ses  = "02"
-task = "ejecutada"
-run  = "06"
+task = "imaginada"
+run  = "14"
 
 type_signal   = "eeg"
 path          = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
@@ -486,9 +486,10 @@ if apply_ica:
     ica_params["components_to_exclude"]["applied"] = final_components
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(ica_params, f, indent=2, ensure_ascii=False)
-    print(f"    JSON actualizado: ica_applied=true")
+    print(f"JSON actualizado: ica_applied=true")
 
-    plt.show()
+    if show_figs:
+        plt.show()
 
 else:
     print("\n[7/7] apply_ica=False — se omite la aplicación de ICA.")

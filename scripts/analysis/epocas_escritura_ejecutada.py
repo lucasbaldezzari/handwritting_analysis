@@ -23,7 +23,7 @@ import mne
 sub  = "01"
 ses  = "02"
 task = "ejecutada"
-run  = "06"
+run  = "05"
 
 type_signal = "eeg"
 path = f"D:\\dataset\\sub-{sub}\\ses-{ses}"
@@ -33,7 +33,7 @@ save_figs  = False
 save_pdf   = True   # agrupa todas las figuras en un único PDF
 block_figs = True
 
-use_ica       = True
+use_ica       = False
 ica_json_path = f"{path}\\sub-{sub}_ses-{ses}_task-{task}_run-{run}_ica.json"
 
 drop_occipital_channels = False
@@ -77,12 +77,17 @@ tfr_bands = {"Theta (4-8 Hz)": (4, 8), "Alpha (8-13 Hz)": (8, 13), "Beta (13-30 
 # Puntos (tiempo_s, frecuencia_Hz) para los topomaps del plot_joint.
 # None → MNE detecta automáticamente los picos más prominentes.
 # Ejemplo manual: [(0.3, 10), (0.8, 20)]
-tfr_timefreqs = [(0.,10.5),(0.1,10.5),(0.3,10.5),(0.5,10.5)]#None
+tfr_timefreqs = [(0.1,9.6),(0.5,9.6),(1.,9.6),
+                 (0.1,18.),(0.5,18.),(1.,18.)]#None
 
 # Baseline para corrección de TFR/topomaps.
 # None → sin corrección.  Ejemplo: (tmin_epocs, 0.0) usa el período pre-evento.
 baseline_topomaps = (-1.2, -1.)#None
 tfr_mode          = "logratio"   # modo de corrección: logratio, ratio, mean, percent, zscore
+
+# Ventana temporal para gráficos de comparación (baseline aplicado al objeto, luego crop).
+tmin_plot = 0.0   # segundos; inicio del recorte (por defecto: evento penDown/rest)
+tmax_plot = None  # segundos; None → se asigna tmax_epoch una vez calculado
 
 # ─── Archivos de entrada ──────────────────────────────────────────────────────
 
@@ -189,6 +194,9 @@ else:
     tmax_epoch = computed_tmax
 
 print(f"tmax_epoch = {tmax_epoch:.3f} s (duración de cada época)")
+
+if tmax_plot is None:
+    tmax_plot = tmax_epoch
 
 # ─── Construcción del objeto MNE Raw ──────────────────────────────────────────
 
@@ -457,6 +465,39 @@ for epoch_type, epochs_obj, label in [
         ax.set_title(band_name)
     fig_bands.suptitle(f"Topomapas potencia por banda — {label} | {run_info}")
     _save(fig_bands, f"{fig_prefix}_{epoch_type}_tfr_bandas.png")
+
+    # ── TFR recortado para comparación (baseline aplicado al objeto) ────────
+    power_crop = power.copy()
+    power_crop.apply_baseline(baseline=baseline_topomaps, mode=tfr_mode)
+    power_crop.crop(tmin=tmin_plot, tmax=tmax_plot)
+    _plot_time = f"{tmin_plot:.1f}s–{tmax_plot:.1f}s"
+
+    fig_tfr_topo_crop = power_crop.plot_topo(
+        title=f"TFR potencia [{_plot_time}] — {label} | {run_info}",
+        show=False,
+    )
+    _save(fig_tfr_topo_crop, f"{fig_prefix}_{epoch_type}_tfr_topo_crop.png")
+
+    fig_tfr_joint_crop = power_crop.plot_joint(
+        timefreqs=tfr_timefreqs,
+        title=f"TFR potencia (Multitaper) [{_plot_time}] — {label} | {run_info}",
+        show=False,
+    )
+    _save(fig_tfr_joint_crop, f"{fig_prefix}_{epoch_type}_tfr_joint_crop.png")
+
+    n_bands = len(tfr_bands)
+    fig_bands_crop, axes_bands_crop = plt.subplots(
+        1, n_bands, figsize=(4 * n_bands, 4), layout="constrained"
+    )
+    if n_bands == 1:
+        axes_bands_crop = [axes_bands_crop]
+    for ax, (band_name, (fmin, fmax)) in zip(axes_bands_crop, tfr_bands.items()):
+        power_crop.plot_topomap(fmin=fmin, fmax=fmax, axes=ax, ch_type="eeg", show=False)
+        ax.set_title(band_name)
+    fig_bands_crop.suptitle(
+        f"Topomapas potencia por banda [{_plot_time}] — {label} | {run_info}"
+    )
+    _save(fig_bands_crop, f"{fig_prefix}_{epoch_type}_tfr_bandas_crop.png")
 
 if report is not None:
     report.close()
